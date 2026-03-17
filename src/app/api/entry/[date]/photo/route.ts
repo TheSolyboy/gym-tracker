@@ -3,12 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { savePhoto } from '@/lib/storage';
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 export async function POST(
   req: NextRequest,
   { params }: { params: { date: string } }
