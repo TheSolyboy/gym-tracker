@@ -39,7 +39,6 @@ NEXTAUTH_URL=https://your-domain.com
 NEXTAUTH_SECRET=your-random-secret-here  # generate with: openssl rand -base64 32
 DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
-DATA_DIR=/data
 PORT=3015
 ```
 
@@ -76,7 +75,7 @@ docker run -d \
 
 ## Data Storage
 
-All data is stored in `DATA_DIR` (default: `/data`):
+All data is stored in `/data` (persistent volume):
 
 ```
 /data/
