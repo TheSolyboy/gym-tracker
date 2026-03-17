@@ -4,6 +4,8 @@ import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { signIn } from 'next-auth/react';
+import { ChevronLeft, Camera, Save, LogIn, Dumbbell } from 'lucide-react';
+import { haptic } from '@/lib/haptics';
 
 interface EntryData {
   weight?: number;
@@ -34,11 +36,11 @@ export default function EntryPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   // Format display date
   const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long',
-    year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
@@ -70,6 +72,7 @@ export default function EntryPage() {
 
   async function handleSave() {
     setSaving(true);
+    setSaveError('');
     try {
       const res = await fetch(`/api/entry/${date}`, {
         method: 'POST',
@@ -77,11 +80,17 @@ export default function EntryPage() {
         body: JSON.stringify(entry),
       });
       if (res.ok) {
+        haptic('success');
         setSavedMsg('Saved!');
         setTimeout(() => setSavedMsg(''), 2000);
+      } else {
+        haptic('error');
+        setSaveError('Failed to save');
       }
     } catch (e) {
       console.error('Failed to save', e);
+      haptic('error');
+      setSaveError('Network error');
     } finally {
       setSaving(false);
     }
@@ -97,11 +106,15 @@ export default function EntryPage() {
         body: formData,
       });
       if (res.ok) {
+        haptic('success');
         setHasPhoto(true);
         setPhotoUrl(`/api/photo/${date}?t=${Date.now()}`);
+      } else {
+        haptic('error');
       }
     } catch (e) {
       console.error('Failed to upload photo', e);
+      haptic('error');
     } finally {
       setUploading(false);
     }
@@ -121,196 +134,252 @@ export default function EntryPage() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-gray-500 text-lg animate-pulse">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
+        <div className="w-8 h-8 rounded-full border-2 border-[#e63946] border-t-transparent animate-spin" />
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <p className="text-gray-400">Please sign in to track your progress.</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] px-6 gap-6">
+        <p className="text-[#888]">Please sign in to track your progress.</p>
         <button
           onClick={() => signIn('discord')}
-          className="bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+          className="flex items-center gap-2 bg-[#5865F2] active:bg-[#4752C4] text-white font-semibold px-6 h-14 rounded-2xl transition-colors"
         >
+          <LogIn size={18} />
           Login with Discord
         </button>
       </div>
     );
   }
 
+  const measurementFields: { field: keyof EntryData; label: string }[] = [
+    { field: 'leftBicep', label: 'Left Bicep' },
+    { field: 'rightBicep', label: 'Right Bicep' },
+    { field: 'chest', label: 'Chest' },
+    { field: 'waist', label: 'Waist' },
+    { field: 'hips', label: 'Hips' },
+    { field: 'neck', label: 'Neck' },
+    { field: 'leftThigh', label: 'Left Thigh' },
+    { field: 'rightThigh', label: 'Right Thigh' },
+  ];
+
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <button
-          onClick={() => router.push('/')}
-          className="text-gray-400 hover:text-white transition-colors"
-          aria-label="Back to calendar"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-white">{displayDate}</h1>
-          <p className="text-gray-500 text-sm">Progress Entry</p>
-        </div>
-      </div>
-
-      {/* Photo Section */}
-      <div className="mb-6">
-        {hasPhoto && photoUrl ? (
-          <div className="relative group">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photoUrl}
-              alt="Progress photo"
-              className="w-full rounded-xl object-cover max-h-80"
-            />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-colors"
-              >
-                Replace Photo
-              </button>
-            </div>
-          </div>
-        ) : (
+    <div className="flex flex-col min-h-screen bg-[#0a0a0a]">
+      {/* Top Header */}
+      <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-4 h-14">
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full h-48 border-2 border-dashed border-[#333] rounded-xl flex flex-col items-center justify-center gap-3 hover:border-rose-600 hover:bg-rose-600/5 transition-all group"
+            onClick={() => {
+              haptic('light');
+              router.push('/');
+            }}
+            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#1a1a1a] active:bg-[#242424] text-[#888] transition-colors"
+            aria-label="Back to calendar"
           >
-            {uploading ? (
-              <div className="text-gray-400 animate-pulse">Uploading...</div>
-            ) : (
-              <>
-                <svg className="w-10 h-10 text-gray-600 group-hover:text-rose-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span className="text-gray-500 group-hover:text-rose-400 transition-colors">Upload progress photo</span>
-              </>
-            )}
+            <ChevronLeft size={22} />
           </button>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handlePhotoUpload(file);
-          }}
-        />
-        {uploading && <p className="text-center text-gray-500 text-sm mt-2 animate-pulse">Uploading photo...</p>}
-      </div>
-
-      {/* Stats Form */}
-      <div className="bg-[#111] border border-[#222] rounded-xl p-6 space-y-6">
-        <h2 className="text-lg font-semibold text-white">Measurements</h2>
-
-        {/* Primary Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Weight (kg)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={entry.weight ?? ''}
-              onChange={(e) => updateField('weight', e.target.value)}
-              placeholder="75.5"
-              className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rose-600 transition-colors"
-            />
+          <div className="text-center">
+            <p className="text-white font-semibold text-sm leading-tight">{displayDate}</p>
           </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Height (cm)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={entry.height ?? ''}
-              onChange={(e) => updateField('height', e.target.value)}
-              placeholder="180"
-              className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rose-600 transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">BMI</label>
-            <div className="w-full bg-[#0f0f0f] border border-[#222] rounded-lg px-3 py-2 text-gray-400">
-              {bmi ?? <span className="text-gray-600">Auto-calculated</span>}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Body Fat (%)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={entry.bodyFat ?? ''}
-              onChange={(e) => updateField('bodyFat', e.target.value)}
-              placeholder="15.0"
-              className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rose-600 transition-colors"
-            />
-          </div>
-        </div>
-
-        {/* Body Measurements */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Body Measurements (cm)</h3>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { field: 'leftBicep' as keyof EntryData, label: 'Left Bicep' },
-              { field: 'rightBicep' as keyof EntryData, label: 'Right Bicep' },
-              { field: 'chest' as keyof EntryData, label: 'Chest' },
-              { field: 'waist' as keyof EntryData, label: 'Waist' },
-              { field: 'hips' as keyof EntryData, label: 'Hips' },
-              { field: 'neck' as keyof EntryData, label: 'Neck' },
-              { field: 'leftThigh' as keyof EntryData, label: 'Left Thigh' },
-              { field: 'rightThigh' as keyof EntryData, label: 'Right Thigh' },
-            ].map(({ field, label }) => (
-              <div key={field}>
-                <label className="block text-sm text-gray-400 mb-1">{label}</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={entry[field] as number ?? ''}
-                  onChange={(e) => updateField(field, e.target.value)}
-                  placeholder="0.0"
-                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rose-600 transition-colors"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">Notes</label>
-          <textarea
-            value={entry.notes ?? ''}
-            onChange={(e) => updateField('notes', e.target.value)}
-            placeholder="How did you feel today? What workouts did you do?"
-            rows={3}
-            className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-rose-600 transition-colors resize-none"
-          />
-        </div>
-
-        {/* Save Button */}
-        <div className="flex items-center gap-4">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#e63946]/15 active:bg-[#e63946]/25 text-[#e63946] disabled:opacity-40 transition-colors"
+            aria-label="Save entry"
           >
-            {saving ? 'Saving...' : 'Save Entry'}
+            <Save size={20} />
           </button>
-          {savedMsg && (
-            <span className="text-green-400 font-medium">{savedMsg}</span>
-          )}
         </div>
+      </header>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto mb-tab-bar">
+        {/* Photo Section */}
+        <div className="w-full aspect-[4/3] bg-[#141414] relative">
+          {hasPhoto && photoUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoUrl}
+                alt="Progress photo"
+                className="w-full h-full object-cover"
+              />
+              {/* Replace overlay */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-4 right-4 w-12 h-12 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
+                aria-label="Replace photo"
+              >
+                <Camera size={20} />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full h-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-[#2a2a2a] active:border-[#e63946] transition-colors"
+            >
+              {uploading ? (
+                <div className="w-8 h-8 rounded-full border-2 border-[#e63946] border-t-transparent animate-spin" />
+              ) : (
+                <>
+                  <Camera size={36} className="text-[#444]" strokeWidth={1.5} />
+                  <span className="text-[#555] text-sm font-medium">Add Photo</span>
+                </>
+              )}
+            </button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handlePhotoUpload(file);
+            }}
+          />
+        </div>
+
+        {/* Stats Form */}
+        <div className="px-4 pt-4 space-y-3">
+          {/* Primary Stats Card */}
+          <div className="bg-[#141414] rounded-3xl overflow-hidden">
+            <div className="px-5 pt-5 pb-2">
+              <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">Primary</p>
+            </div>
+
+            {/* Weight */}
+            <StatRow
+              label="Weight"
+              unit="kg"
+              value={entry.weight}
+              onChange={(v) => updateField('weight', v)}
+              placeholder="75.5"
+            />
+            <div className="mx-5 h-px bg-[#1f1f1f]" />
+
+            {/* Height */}
+            <StatRow
+              label="Height"
+              unit="cm"
+              value={entry.height}
+              onChange={(v) => updateField('height', v)}
+              placeholder="180"
+            />
+            <div className="mx-5 h-px bg-[#1f1f1f]" />
+
+            {/* BMI — read only */}
+            <div className="flex items-center justify-between px-5 min-h-[56px]">
+              <span className="text-[#888] text-sm font-medium">BMI</span>
+              {bmi ? (
+                <span className="bg-[#e63946]/15 text-[#e63946] text-sm font-bold px-3 py-1 rounded-full">
+                  {bmi}
+                </span>
+              ) : (
+                <span className="text-[#333] text-sm">—</span>
+              )}
+            </div>
+            <div className="mx-5 h-px bg-[#1f1f1f]" />
+
+            {/* Body Fat */}
+            <StatRow
+              label="Body Fat"
+              unit="%"
+              value={entry.bodyFat}
+              onChange={(v) => updateField('bodyFat', v)}
+              placeholder="15.0"
+            />
+            <div className="pb-2" />
+          </div>
+
+          {/* Measurements Card */}
+          <div className="bg-[#141414] rounded-3xl overflow-hidden">
+            <div className="px-5 pt-5 pb-2">
+              <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">Measurements (cm)</p>
+            </div>
+            {measurementFields.map(({ field, label }, i) => (
+              <div key={field}>
+                <StatRow
+                  label={label}
+                  unit="cm"
+                  value={entry[field] as number | undefined}
+                  onChange={(v) => updateField(field, v)}
+                  placeholder="0.0"
+                />
+                {i < measurementFields.length - 1 && (
+                  <div className="mx-5 h-px bg-[#1f1f1f]" />
+                )}
+              </div>
+            ))}
+            <div className="pb-2" />
+          </div>
+
+          {/* Notes Card */}
+          <div className="bg-[#141414] rounded-3xl overflow-hidden">
+            <div className="px-5 pt-5 pb-2">
+              <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">Notes</p>
+            </div>
+            <textarea
+              value={entry.notes ?? ''}
+              onChange={(e) => updateField('notes', e.target.value)}
+              placeholder="How did you feel? What did you train?"
+              rows={4}
+              className="w-full bg-transparent px-5 pb-5 text-[#e5e5e5] placeholder-[#333] focus:outline-none resize-none text-sm leading-relaxed"
+            />
+          </div>
+
+          {/* Save Button */}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-[#e63946] active:bg-[#cc2f3b] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-3xl transition-colors flex items-center justify-center gap-2"
+            style={{ height: '56px' }}
+          >
+            <Dumbbell size={20} strokeWidth={2} />
+            {saving ? 'Saving...' : savedMsg || 'Save Entry'}
+          </button>
+
+          {saveError && (
+            <p className="text-center text-[#e63946] text-sm">{saveError}</p>
+          )}
+
+          {/* bottom spacing */}
+          <div className="h-4" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Stat Row ───────────────────────────────────────────────────────────────
+
+interface StatRowProps {
+  label: string;
+  unit: string;
+  value: number | undefined;
+  onChange: (v: string) => void;
+  placeholder: string;
+}
+
+function StatRow({ label, unit, value, onChange, placeholder }: StatRowProps) {
+  return (
+    <div className="flex items-center justify-between px-5 min-h-[56px] gap-4">
+      <span className="text-[#888] text-sm font-medium shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <input
+          type="number"
+          step="0.1"
+          inputMode="decimal"
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-20 bg-transparent text-right text-white text-sm font-medium placeholder-[#333] focus:outline-none"
+        />
+        <span className="text-[#444] text-xs shrink-0">{unit}</span>
       </div>
     </div>
   );

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { haptic } from '@/lib/haptics';
 
 interface CalendarData {
   dates: string[];
@@ -37,6 +39,7 @@ export function CalendarView() {
   }
 
   function prevMonth() {
+    haptic('light');
     if (month === 0) {
       setMonth(11);
       setYear((y) => y - 1);
@@ -46,6 +49,7 @@ export function CalendarView() {
   }
 
   function nextMonth() {
+    haptic('light');
     if (month === 11) {
       setMonth(0);
       setYear((y) => y + 1);
@@ -67,48 +71,36 @@ export function CalendarView() {
   const entrySet = new Set(data.dates);
   const photoSet = new Set(data.photoDates);
 
-  const days = [];
-  // Pad start
-  for (let i = 0; i < firstDayOfMonth; i++) {
-    days.push(null);
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    days.push(d);
-  }
-  // Pad end to complete last row
-  while (days.length % 7 !== 0) {
-    days.push(null);
-  }
+  const days: (number | null)[] = [];
+  for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
+  for (let d = 1; d <= daysInMonth; d++) days.push(d);
+  while (days.length % 7 !== 0) days.push(null);
 
   return (
     <div>
       {/* Month Navigation */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5 mt-2">
         <button
           onClick={prevMonth}
-          className="p-2 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors"
+          className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#1a1a1a] active:bg-[#242424] text-[#888] active:text-white transition-colors"
           aria-label="Previous month"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft size={20} />
         </button>
-        <h2 className="text-xl font-bold text-white">{monthName}</h2>
+        <h2 className="text-lg font-semibold text-white">{monthName}</h2>
         <button
           onClick={nextMonth}
-          className="p-2 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors"
+          className="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#1a1a1a] active:bg-[#242424] text-[#888] active:text-white transition-colors"
           aria-label="Next month"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight size={20} />
         </button>
       </div>
 
       {/* Day Headers */}
       <div className="grid grid-cols-7 mb-2">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-          <div key={d} className="text-center text-xs font-semibold text-gray-600 uppercase tracking-wider py-2">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+          <div key={i} className="text-center text-[10px] font-semibold text-[#444] uppercase tracking-widest py-1">
             {d}
           </div>
         ))}
@@ -116,13 +108,13 @@ export function CalendarView() {
 
       {/* Calendar Grid */}
       {loading ? (
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1.5">
           {Array.from({ length: 35 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-lg bg-[#111] animate-pulse" />
+            <div key={i} className="aspect-square rounded-xl bg-[#141414] animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1.5">
           {days.map((day, idx) => {
             if (!day) {
               return <div key={`empty-${idx}`} className="aspect-square" />;
@@ -141,24 +133,15 @@ export function CalendarView() {
                 hasEntry={hasEntry}
                 hasPhoto={hasPhotoForDay}
                 isToday={isToday}
-                onClick={() => router.push(`/entry/${dateStr}`)}
+                onClick={() => {
+                  haptic('light');
+                  router.push(`/entry/${dateStr}`);
+                }}
               />
             );
           })}
         </div>
       )}
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 mt-6 text-xs text-gray-500">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-rose-600/30 border border-rose-600/50" />
-          <span>Has entry</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-[#333]" />
-          <span>Has photo</span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -185,28 +168,34 @@ function DayTile({ day, dateStr, hasEntry, hasPhoto, isToday, onClick }: DayTile
     <button
       onClick={onClick}
       className={`
-        relative aspect-square rounded-lg overflow-hidden transition-all
-        hover:ring-2 hover:ring-rose-600 hover:scale-105
-        ${isToday ? 'ring-2 ring-rose-500' : ''}
-        ${hasEntry ? 'bg-rose-950/30 border border-rose-900/50' : 'bg-[#111] border border-[#1a1a1a]'}
+        relative aspect-square rounded-xl overflow-hidden transition-transform active:scale-95
+        ${isToday ? 'ring-2 ring-[#e63946] ring-offset-1 ring-offset-[#0a0a0a]' : ''}
+        ${!photoUrl && hasEntry ? 'bg-[#e63946]/15' : 'bg-[#141414]'}
       `}
+      style={{ minHeight: '44px' }}
     >
       {photoUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={photoUrl}
           alt={`Photo for ${dateStr}`}
-          className="absolute inset-0 w-full h-full object-cover opacity-60"
+          className="absolute inset-0 w-full h-full object-cover"
         />
       )}
-      <div className={`absolute inset-0 flex items-center justify-center ${photoUrl ? 'bg-black/40' : ''}`}>
+      {/* Gradient overlay for photo tiles */}
+      {photoUrl && (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+      )}
+      <div className="absolute inset-0 flex items-end justify-center pb-1">
         <span
-          className={`text-sm font-semibold relative z-10 ${
+          className={`text-[11px] font-semibold relative z-10 ${
             isToday
-              ? 'text-rose-400'
-              : photoUrl || hasEntry
+              ? 'text-[#e63946]'
+              : photoUrl
               ? 'text-white'
-              : 'text-gray-500'
+              : hasEntry
+              ? 'text-[#e5e5e5]'
+              : 'text-[#444]'
           }`}
         >
           {day}
