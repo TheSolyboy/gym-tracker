@@ -10,15 +10,19 @@ interface CalendarData {
   photoDates: string[];
 }
 
+type FirstDayOfWeek = 'Monday' | 'Sunday';
+
 export function CalendarView() {
   const router = useRouter();
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth()); // 0-indexed
   const [data, setData] = useState<CalendarData>({ dates: [], photoDates: [] });
   const [loading, setLoading] = useState(true);
+  const [firstDayOfWeek, setFirstDayOfWeek] = useState<FirstDayOfWeek>('Monday');
 
   useEffect(() => {
     fetchData();
+    fetchSettings();
   }, []);
 
   async function fetchData() {
@@ -35,6 +39,20 @@ export function CalendarView() {
       console.error('Failed to fetch calendar data', e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchSettings() {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const settings = await res.json();
+        if (settings.firstDayOfWeek) {
+          setFirstDayOfWeek(settings.firstDayOfWeek as FirstDayOfWeek);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch settings', e);
     }
   }
 
@@ -63,8 +81,18 @@ export function CalendarView() {
     year: 'numeric',
   });
 
+  // firstDayOfWeek: Monday=1, Sunday=0
+  const startDay = firstDayOfWeek === 'Monday' ? 1 : 0;
+
+  // Day header labels starting from the configured first day
+  const dayLabels = firstDayOfWeek === 'Monday'
+    ? ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+    : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
   // Build calendar grid
-  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Sun
+  const rawFirstDay = new Date(year, month, 1).getDay(); // 0=Sun, 6=Sat
+  // How many empty cells before day 1
+  const offset = (rawFirstDay - startDay + 7) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date().toISOString().split('T')[0];
 
@@ -72,7 +100,7 @@ export function CalendarView() {
   const photoSet = new Set(data.photoDates);
 
   const days: (number | null)[] = [];
-  for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
+  for (let i = 0; i < offset; i++) days.push(null);
   for (let d = 1; d <= daysInMonth; d++) days.push(d);
   while (days.length % 7 !== 0) days.push(null);
 
@@ -99,7 +127,7 @@ export function CalendarView() {
 
       {/* Day Headers */}
       <div className="grid grid-cols-7 mb-2">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+        {dayLabels.map((d, i) => (
           <div key={i} className="text-center text-[10px] font-semibold text-[#444] uppercase tracking-widest py-1">
             {d}
           </div>

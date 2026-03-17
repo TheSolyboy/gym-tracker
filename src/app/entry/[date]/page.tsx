@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from 'react';
 import { signIn } from 'next-auth/react';
 import { ChevronLeft, Camera, Save, LogIn, Dumbbell } from 'lucide-react';
 import { haptic } from '@/lib/haptics';
+import { kgToLbs, lbsToKg, cmToIn, inToCm } from '@/lib/units';
 
 interface EntryData {
   weight?: number;
@@ -22,6 +23,13 @@ interface EntryData {
   notes?: string;
 }
 
+interface UserSettings {
+  weightUnit: 'kg' | 'lbs';
+  measurementUnit: 'cm' | 'in';
+  firstDayOfWeek: 'Monday' | 'Sunday';
+  height?: number;
+}
+
 export default function EntryPage() {
   const { data: session, status } = useSession();
   const params = useParams();
@@ -29,6 +37,7 @@ export default function EntryPage() {
   const date = params.date as string;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Raw entry stored in kg/cm internally
   const [entry, setEntry] = useState<EntryData>({});
   const [hasPhoto, setHasPhoto] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -37,6 +46,15 @@ export default function EntryPage() {
   const [uploading, setUploading] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [settings, setSettings] = useState<UserSettings>({
+    weightUnit: 'kg',
+    measurementUnit: 'cm',
+    firstDayOfWeek: 'Monday',
+  });
+
+  // Display values (may be in lbs/in depending on settings)
+  const [displayWeight, setDisplayWeight] = useState('');
+  const [displayMeasurements, setDisplayMeasurements] = useState<Record<string, string>>({});
 
   // Format display date
   const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
@@ -47,9 +65,51 @@ export default function EntryPage() {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      fetchEntry();
+      Promise.all([fetchEntry(), fetchSettings()]);
     }
   }, [status, date]);
+
+  // Sync display values whenever entry or settings change
+  useEffect(() => {
+    // weight display
+    if (entry.weight !== undefined) {
+      const disp =
+        settings.weightUnit === 'lbs'
+          ? String(kgToLbs(entry.weight))
+          : String(entry.weight);
+      setDisplayWeight(disp);
+    } else {
+      setDisplayWeight('');
+    }
+
+    // measurement display
+    const measurementKeys = [
+      'leftBicep', 'rightBicep', 'chest', 'waist', 'hips', 'neck', 'leftThigh', 'rightThigh',
+    ] as const;
+    const newDisplay: Record<string, string> = {};
+    for (const key of measurementKeys) {
+      const val = entry[key as keyof EntryData] as number | undefined;
+      if (val !== undefined) {
+        newDisplay[key] =
+          settings.measurementUnit === 'in' ? String(cmToIn(val)) : String(val);
+      } else {
+        newDisplay[key] = '';
+      }
+    }
+    setDisplayMeasurements(newDisplay);
+  }, [entry, settings]);
+
+  async function fetchSettings() {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data: UserSettings = await res.json();
+        setSettings(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch settings', e);
+    }
+  }
 
   async function fetchEntry() {
     setLoading(true);
@@ -120,6 +180,7 @@ export default function EntryPage() {
     }
   }
 
+  // BMI always uses raw kg/cm values
   const bmi =
     entry.weight && entry.height
       ? (entry.weight / Math.pow(entry.height / 100, 2)).toFixed(1)
@@ -130,6 +191,32 @@ export default function EntryPage() {
       ...prev,
       [field]: value === '' ? undefined : field === 'notes' ? value : parseFloat(value),
     }));
+  }
+
+  function handleWeightChange(v: string) {
+    setDisplayWeight(v);
+    if (v === '') {
+      setEntry((prev) => ({ ...prev, weight: undefined }));
+    } else {
+      const num = parseFloat(v);
+      if (!isNaN(num)) {
+        const kgVal = settings.weightUnit === 'lbs' ? lbsToKg(num) : num;
+        setEntry((prev) => ({ ...prev, weight: kgVal }));
+      }
+    }
+  }
+
+  function handleMeasurementChange(field: string, v: string) {
+    setDisplayMeasurements((prev) => ({ ...prev, [field]: v }));
+    if (v === '') {
+      setEntry((prev) => ({ ...prev, [field]: undefined }));
+    } else {
+      const num = parseFloat(v);
+      if (!isNaN(num)) {
+        const cmVal = settings.measurementUnit === 'in' ? inToCm(num) : num;
+        setEntry((prev) => ({ ...prev, [field]: cmVal }));
+      }
+    }
   }
 
   if (status === 'loading' || loading) {
@@ -155,7 +242,10 @@ export default function EntryPage() {
     );
   }
 
-  const measurementFields: { field: keyof EntryData; label: string }[] = [
+  const wUnit = settings.weightUnit;
+  const mUnit = settings.measurementUnit === 'in' ? 'in' : 'cm';
+
+  const measurementFields: { field: string; label: string }[] = [
     { field: 'leftBicep', label: 'Left Bicep' },
     { field: 'rightBicep', label: 'Right Bicep' },
     { field: 'chest', label: 'Chest' },
@@ -207,7 +297,6 @@ export default function EntryPage() {
                 alt="Progress photo"
                 className="w-full h-full object-cover"
               />
-              {/* Replace overlay */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="absolute bottom-4 right-4 w-12 h-12 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
@@ -254,24 +343,40 @@ export default function EntryPage() {
             {/* Weight */}
             <StatRow
               label="Weight"
-              unit="kg"
-              value={entry.weight}
-              onChange={(v) => updateField('weight', v)}
-              placeholder="75.5"
+              unit={wUnit}
+              value={displayWeight}
+              onChange={handleWeightChange}
+              placeholder={wUnit === 'lbs' ? '165' : '75.5'}
             />
             <div className="mx-5 h-px bg-[#1f1f1f]" />
 
             {/* Height */}
             <StatRow
               label="Height"
-              unit="cm"
-              value={entry.height}
-              onChange={(v) => updateField('height', v)}
-              placeholder="180"
+              unit={mUnit}
+              value={
+                entry.height !== undefined
+                  ? settings.measurementUnit === 'in'
+                    ? String(cmToIn(entry.height))
+                    : String(entry.height)
+                  : ''
+              }
+              onChange={(v) => {
+                if (v === '') {
+                  setEntry((prev) => ({ ...prev, height: undefined }));
+                } else {
+                  const num = parseFloat(v);
+                  if (!isNaN(num)) {
+                    const cmVal = settings.measurementUnit === 'in' ? inToCm(num) : num;
+                    setEntry((prev) => ({ ...prev, height: cmVal }));
+                  }
+                }
+              }}
+              placeholder={mUnit === 'in' ? '71' : '180'}
             />
             <div className="mx-5 h-px bg-[#1f1f1f]" />
 
-            {/* BMI — read only */}
+            {/* BMI — read only, always uses kg/cm */}
             <div className="flex items-center justify-between px-5 min-h-[56px]">
               <span className="text-[#888] text-sm font-medium">BMI</span>
               {bmi ? (
@@ -288,7 +393,7 @@ export default function EntryPage() {
             <StatRow
               label="Body Fat"
               unit="%"
-              value={entry.bodyFat}
+              value={entry.bodyFat !== undefined ? String(entry.bodyFat) : ''}
               onChange={(v) => updateField('bodyFat', v)}
               placeholder="15.0"
             />
@@ -298,15 +403,17 @@ export default function EntryPage() {
           {/* Measurements Card */}
           <div className="bg-[#141414] rounded-3xl overflow-hidden">
             <div className="px-5 pt-5 pb-2">
-              <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">Measurements (cm)</p>
+              <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">
+                Measurements ({mUnit})
+              </p>
             </div>
             {measurementFields.map(({ field, label }, i) => (
               <div key={field}>
                 <StatRow
                   label={label}
-                  unit="cm"
-                  value={entry[field] as number | undefined}
-                  onChange={(v) => updateField(field, v)}
+                  unit={mUnit}
+                  value={displayMeasurements[field] ?? ''}
+                  onChange={(v) => handleMeasurementChange(field, v)}
                   placeholder="0.0"
                 />
                 {i < measurementFields.length - 1 && (
@@ -359,7 +466,7 @@ export default function EntryPage() {
 interface StatRowProps {
   label: string;
   unit: string;
-  value: number | undefined;
+  value: string;
   onChange: (v: string) => void;
   placeholder: string;
 }
@@ -373,7 +480,7 @@ function StatRow({ label, unit, value, onChange, placeholder }: StatRowProps) {
           type="number"
           step="0.1"
           inputMode="decimal"
-          value={value ?? ''}
+          value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className="w-20 bg-transparent text-right text-white text-sm font-medium placeholder-[#333] focus:outline-none"
