@@ -146,11 +146,13 @@ export default function EntryPage() {
       } else {
         haptic('error');
         setSaveError('Failed to save');
+        setTimeout(() => setSaveError(''), 3000);
       }
     } catch (e) {
       console.error('Failed to save', e);
       haptic('error');
       setSaveError('Network error');
+      setTimeout(() => setSaveError(''), 3000);
     } finally {
       setSaving(false);
     }
@@ -258,8 +260,22 @@ export default function EntryPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0a0a]">
+      {/* Toast notification */}
+      <div className={`fixed top-0 left-0 right-0 z-50 flex justify-center transition-all duration-300 ${savedMsg ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`} style={{paddingTop: 'calc(env(safe-area-inset-top, 0px) + 60px)'}}>
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500" />
+          Entry saved
+        </div>
+      </div>
+      {/* Error toast */}
+      <div className={`fixed top-0 left-0 right-0 z-50 flex justify-center transition-all duration-300 ${saveError ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`} style={{paddingTop: 'calc(env(safe-area-inset-top, 0px) + 60px)'}}>
+        <div className="bg-[#1a1a1a] border border-[#e63946]/30 text-[#e63946] text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#e63946]" />
+          {saveError}
+        </div>
+      </div>
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm">
+      <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm" style={{paddingTop: 'env(safe-area-inset-top, 0px)'}}>
         <div className="flex items-center justify-between px-4 h-14">
           <button
             onClick={() => {
