@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
-import { CalendarDays, User, Settings } from 'lucide-react';
+import { CalendarDays, User, Settings, BarChart2 } from 'lucide-react';
 import { haptic } from '@/lib/haptics';
 
 export function BottomNav() {
@@ -14,6 +14,7 @@ export function BottomNav() {
 
   const tabs = [
     { label: 'Progress', icon: CalendarDays, href: '/' },
+    { label: 'Analytics', icon: BarChart2, href: '/analytics' },
     { label: 'Profile', icon: User, href: '/profile' },
     { label: 'Settings', icon: Settings, href: '/settings' },
   ];
