@@ -9,7 +9,7 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0a0a]">
-      <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm px-4">
+      <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm px-4" style={{paddingTop: 'env(safe-area-inset-top, 0px)'}}>
         <div className="flex items-center h-14">
           <h1 className="text-xl font-bold text-white tracking-tight">Profile</h1>
         </div>

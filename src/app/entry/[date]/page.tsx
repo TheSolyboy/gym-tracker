@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { signIn } from 'next-auth/react';
-import { ChevronLeft, Camera, Save, LogIn, Dumbbell } from 'lucide-react';
+import { ChevronLeft, Camera, Save, LogIn, Dumbbell, Download } from 'lucide-react';
 import { haptic } from '@/lib/haptics';
 import { kgToLbs, lbsToKg, cmToIn, inToCm } from '@/lib/units';
 
@@ -313,13 +313,24 @@ export default function EntryPage() {
                 alt="Progress photo"
                 className="w-full h-full object-cover"
               />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-4 right-4 w-12 h-12 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
-                aria-label="Replace photo"
-              >
-                <Camera size={20} />
-              </button>
+              <div className="absolute bottom-4 right-4 flex gap-2">
+                <a
+                  href={photoUrl ?? ''}
+                  download={`progress-${date}.jpg`}
+                  onClick={() => haptic('light')}
+                  className="w-12 h-12 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
+                  aria-label="Download photo"
+                >
+                  <Download size={20} />
+                </a>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-12 h-12 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
+                  aria-label="Replace photo"
+                >
+                  <Camera size={20} />
+                </button>
+              </div>
             </>
           ) : (
             <button

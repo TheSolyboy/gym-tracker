@@ -126,7 +126,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0a0a]">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm">
+      <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm" style={{paddingTop: 'env(safe-area-inset-top, 0px)'}}>
         <div className="flex items-center px-4 h-14 gap-3">
           <button
             onClick={() => {
