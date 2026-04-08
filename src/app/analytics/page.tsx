@@ -68,7 +68,7 @@ interface ChartCardProps {
   minPoints?: number;
 }
 
-function ChartCard({ title, data, lines, unit, minPoints = 2 }: ChartCardProps) {
+function ChartCard({ title, data, lines, unit, minPoints = 1 }: ChartCardProps) {
   // Filter to entries that have at least one of the required keys
   const validData = data.filter((d) => lines.some((l) => d[l.key] !== undefined));
   if (validData.length < minPoints) return null;
@@ -223,10 +223,10 @@ export default function AnalyticsPage() {
       </header>
 
       <main className="flex-1 px-4 pt-4 mb-tab-bar space-y-3 pb-4">
-        {displayEntries.length < 2 ? (
+        {displayEntries.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-60 gap-3">
             <p className="text-[#555] text-sm text-center">
-              Add at least 2 entries to see your progress graphs.
+              Add an entry to see your progress graphs.
             </p>
           </div>
         ) : (
