@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getPhotoPath } from '@/lib/storage';
+import { getPhotoById } from '@/lib/storage';
 import fs from 'fs/promises';
-import path from 'path';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { date: string } }
 ) {
   try {
@@ -25,35 +24,21 @@ export async function GET(
       return new NextResponse('Invalid date format', { status: 400 });
     }
 
-    // Try multiple extensions
-    const exts = ['.jpg', '.jpeg', '.png', '.webp'];
-    let photoPath: string | null = null;
-    let foundExt = '';
+    const photoId = req.nextUrl.searchParams.get('id');
+    const photo = await getPhotoById(userId, date, photoId);
 
-    for (const ext of exts) {
-      const candidate = getPhotoPath(userId, date).replace('.jpg', ext);
-      try {
-        await fs.access(candidate);
-        photoPath = candidate;
-        foundExt = ext;
-        break;
-      } catch {
-        // not found, try next
-      }
-    }
-
-    if (!photoPath) {
+    if (!photo) {
       return new NextResponse('Not found', { status: 404 });
     }
 
-    const fileBuffer = await fs.readFile(photoPath);
+    const fileBuffer = await fs.readFile(photo.path);
     const contentTypeMap: Record<string, string> = {
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
       '.png': 'image/png',
       '.webp': 'image/webp',
     };
-    const contentType = contentTypeMap[foundExt] || 'image/jpeg';
+    const contentType = contentTypeMap[photo.ext] || 'image/jpeg';
 
     return new NextResponse(fileBuffer, {
       headers: {

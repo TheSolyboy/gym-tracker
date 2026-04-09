@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { readEntry, writeEntry, hasPhoto, readProfile, writeProfile } from '@/lib/storage';
+import { readEntry, writeEntry, hasPhoto, readProfile, writeProfile, listPhotos } from '@/lib/storage';
 
 export async function GET(
   _req: NextRequest,
@@ -25,15 +25,22 @@ export async function GET(
 
     const entry = await readEntry(userId, date);
     const profile = await readProfile(userId);
+    const photos = await listPhotos(userId, date);
     const photoExists = await hasPhoto(userId, date);
 
-    // Auto-fill height from profile if not in entry
     const mergedEntry = {
       ...entry,
       height: entry?.height ?? profile?.height,
     };
 
-    return NextResponse.json({ entry: mergedEntry, hasPhoto: photoExists });
+    return NextResponse.json({
+      entry: mergedEntry,
+      hasPhoto: photoExists,
+      photos: photos.map((photo) => ({
+        id: photo.urlId,
+        url: `/api/photo/${date}?id=${encodeURIComponent(photo.urlId)}`,
+      })),
+    });
   } catch (error) {
     console.error('GET /api/entry error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -63,7 +70,6 @@ export async function POST(
     const body = await req.json();
     await writeEntry(userId, date, body);
 
-    // If height provided, update profile
     if (body.height) {
       const profile = await readProfile(userId) || {};
       await writeProfile(userId, { ...profile, height: body.height });

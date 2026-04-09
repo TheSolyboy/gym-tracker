@@ -32,9 +32,9 @@ export async function POST(
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await savePhoto(userId, date, buffer);
+    const saved = await savePhoto(userId, date, buffer, file.type);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, photoId: saved.id });
   } catch (error) {
     console.error('POST /api/entry/photo error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

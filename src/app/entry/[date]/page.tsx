@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { signIn } from 'next-auth/react';
-import { ChevronLeft, Camera, Save, LogIn, Dumbbell, Download } from 'lucide-react';
+import { ChevronLeft, Camera, Save, LogIn, Dumbbell, Download, ChevronRight } from 'lucide-react';
 import { haptic } from '@/lib/haptics';
 import { kgToLbs, lbsToKg, cmToIn, inToCm } from '@/lib/units';
 
@@ -30,6 +30,11 @@ interface UserSettings {
   height?: number;
 }
 
+interface EntryPhoto {
+  id: string;
+  url: string;
+}
+
 export default function EntryPage() {
   const { data: session, status } = useSession();
   const params = useParams();
@@ -37,10 +42,10 @@ export default function EntryPage() {
   const date = params.date as string;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Raw entry stored in kg/cm internally
   const [entry, setEntry] = useState<EntryData>({});
   const [hasPhoto, setHasPhoto] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<EntryPhoto[]>([]);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -52,11 +57,9 @@ export default function EntryPage() {
     firstDayOfWeek: 'Monday',
   });
 
-  // Display values (may be in lbs/in depending on settings)
   const [displayWeight, setDisplayWeight] = useState('');
   const [displayMeasurements, setDisplayMeasurements] = useState<Record<string, string>>({});
 
-  // Format display date
   const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -69,9 +72,7 @@ export default function EntryPage() {
     }
   }, [status, date]);
 
-  // Sync display values whenever entry or settings change
   useEffect(() => {
-    // weight display
     if (entry.weight !== undefined) {
       const disp =
         settings.weightUnit === 'lbs'
@@ -82,7 +83,6 @@ export default function EntryPage() {
       setDisplayWeight('');
     }
 
-    // measurement display
     const measurementKeys = [
       'leftBicep', 'rightBicep', 'chest', 'waist', 'hips', 'neck', 'leftThigh', 'rightThigh',
     ] as const;
@@ -98,6 +98,12 @@ export default function EntryPage() {
     }
     setDisplayMeasurements(newDisplay);
   }, [entry, settings]);
+
+  useEffect(() => {
+    if (activePhotoIndex > photos.length - 1) {
+      setActivePhotoIndex(Math.max(0, photos.length - 1));
+    }
+  }, [photos.length, activePhotoIndex]);
 
   async function fetchSettings() {
     try {
@@ -118,10 +124,10 @@ export default function EntryPage() {
       if (res.ok) {
         const data = await res.json();
         setEntry(data.entry || {});
-        setHasPhoto(data.hasPhoto || false);
-        if (data.hasPhoto) {
-          setPhotoUrl(`/api/photo/${date}?t=${Date.now()}`);
-        }
+        const fetchedPhotos: EntryPhoto[] = data.photos || [];
+        setPhotos(fetchedPhotos);
+        setHasPhoto((data.hasPhoto || false) && fetchedPhotos.length > 0);
+        setActivePhotoIndex(0);
       }
     } catch (e) {
       console.error('Failed to fetch entry', e);
@@ -169,8 +175,12 @@ export default function EntryPage() {
       });
       if (res.ok) {
         haptic('success');
+        await fetchEntry();
         setHasPhoto(true);
-        setPhotoUrl(`/api/photo/${date}?t=${Date.now()}`);
+        setActivePhotoIndex((prev) => {
+          const next = photos.length;
+          return next;
+        });
       } else {
         haptic('error');
       }
@@ -182,7 +192,6 @@ export default function EntryPage() {
     }
   }
 
-  // BMI always uses raw kg/cm values
   const bmi =
     entry.weight && entry.height
       ? (entry.weight / Math.pow(entry.height / 100, 2)).toFixed(1)
@@ -221,6 +230,16 @@ export default function EntryPage() {
     }
   }
 
+  function showPrevPhoto() {
+    haptic('light');
+    setActivePhotoIndex((prev) => (prev === 0 ? photos.length - 1 : prev - 1));
+  }
+
+  function showNextPhoto() {
+    haptic('light');
+    setActivePhotoIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1));
+  }
+
   if (status === 'loading' || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
@@ -246,6 +265,7 @@ export default function EntryPage() {
 
   const wUnit = settings.weightUnit;
   const mUnit = settings.measurementUnit === 'in' ? 'in' : 'cm';
+  const activePhoto = photos[activePhotoIndex] ?? null;
 
   const measurementFields: { field: string; label: string }[] = [
     { field: 'leftBicep', label: 'Left Bicep' },
@@ -260,21 +280,18 @@ export default function EntryPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0a0a]">
-      {/* Toast notification */}
       <div className={`fixed top-0 left-0 right-0 z-50 flex justify-center transition-all duration-300 ${savedMsg ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`} style={{paddingTop: 'calc(env(safe-area-inset-top, 0px) + 60px)'}}>
         <div className="bg-[#1a1a1a] border border-[#2a2a2a] text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500" />
           Entry saved
         </div>
       </div>
-      {/* Error toast */}
       <div className={`fixed top-0 left-0 right-0 z-50 flex justify-center transition-all duration-300 ${saveError ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`} style={{paddingTop: 'calc(env(safe-area-inset-top, 0px) + 60px)'}}>
         <div className="bg-[#1a1a1a] border border-[#e63946]/30 text-[#e63946] text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#e63946]" />
           {saveError}
         </div>
       </div>
-      {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-sm" style={{paddingTop: 'env(safe-area-inset-top, 0px)'}}>
         <div className="flex items-center justify-between px-4 h-14">
           <button
@@ -301,22 +318,56 @@ export default function EntryPage() {
         </div>
       </header>
 
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto mb-tab-bar">
-        {/* Photo Section */}
         <div className="w-full aspect-[4/3] bg-[#141414] relative">
-          {hasPhoto && photoUrl ? (
+          {hasPhoto && activePhoto ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={photoUrl}
+                src={`${activePhoto.url}&t=${Date.now()}`}
                 alt="Progress photo"
                 className="w-full h-full object-cover"
               />
+
+              {photos.length > 1 && (
+                <>
+                  <button
+                    onClick={showPrevPhoto}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
+                    aria-label="Previous photo"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <button
+                    onClick={showNextPhoto}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
+                    aria-label="Next photo"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </>
+              )}
+
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {photos.map((photo, index) => (
+                  <button
+                    key={photo.id}
+                    onClick={() => {
+                      haptic('light');
+                      setActivePhotoIndex(index);
+                    }}
+                    className={`w-2.5 h-2.5 rounded-full transition-all ${
+                      index === activePhotoIndex ? 'bg-white' : 'bg-white/40'
+                    }`}
+                    aria-label={`Show photo ${index + 1}`}
+                  />
+                ))}
+              </div>
+
               <div className="absolute bottom-4 right-4 flex gap-2">
                 <a
-                  href={photoUrl ?? ''}
-                  download={`progress-${date}.jpg`}
+                  href={activePhoto.url}
+                  download={`progress-${date}-${activePhotoIndex + 1}.jpg`}
                   onClick={() => haptic('light')}
                   className="w-12 h-12 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
                   aria-label="Download photo"
@@ -326,7 +377,7 @@ export default function EntryPage() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="w-12 h-12 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm text-white active:bg-black/80 transition-colors"
-                  aria-label="Replace photo"
+                  aria-label="Add photo"
                 >
                   <Camera size={20} />
                 </button>
@@ -355,19 +406,17 @@ export default function EntryPage() {
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) handlePhotoUpload(file);
+              e.currentTarget.value = '';
             }}
           />
         </div>
 
-        {/* Stats Form */}
         <div className="px-4 pt-4 space-y-3">
-          {/* Primary Stats Card */}
           <div className="bg-[#141414] rounded-3xl overflow-hidden">
             <div className="px-5 pt-5 pb-2">
               <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">Primary</p>
             </div>
 
-            {/* Weight */}
             <StatRow
               label="Weight"
               unit={wUnit}
@@ -377,7 +426,6 @@ export default function EntryPage() {
             />
             <div className="mx-5 h-px bg-[#1f1f1f]" />
 
-            {/* Height */}
             <StatRow
               label="Height"
               unit={mUnit}
@@ -403,7 +451,6 @@ export default function EntryPage() {
             />
             <div className="mx-5 h-px bg-[#1f1f1f]" />
 
-            {/* BMI — read only, always uses kg/cm */}
             <div className="flex items-center justify-between px-5 min-h-[56px]">
               <span className="text-[#888] text-sm font-medium">BMI</span>
               {bmi ? (
@@ -416,7 +463,6 @@ export default function EntryPage() {
             </div>
             <div className="mx-5 h-px bg-[#1f1f1f]" />
 
-            {/* Body Fat */}
             <StatRow
               label="Body Fat"
               unit="%"
@@ -427,7 +473,6 @@ export default function EntryPage() {
             <div className="pb-2" />
           </div>
 
-          {/* Measurements Card */}
           <div className="bg-[#141414] rounded-3xl overflow-hidden">
             <div className="px-5 pt-5 pb-2">
               <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">
@@ -451,7 +496,6 @@ export default function EntryPage() {
             <div className="pb-2" />
           </div>
 
-          {/* Notes Card */}
           <div className="bg-[#141414] rounded-3xl overflow-hidden">
             <div className="px-5 pt-5 pb-2">
               <p className="text-xs font-semibold text-[#555] uppercase tracking-widest">Notes</p>
@@ -465,7 +509,6 @@ export default function EntryPage() {
             />
           </div>
 
-          {/* Save Button */}
           <button
             onClick={handleSave}
             disabled={saving}
@@ -480,15 +523,12 @@ export default function EntryPage() {
             <p className="text-center text-[#e63946] text-sm">{saveError}</p>
           )}
 
-          {/* bottom spacing */}
           <div className="h-4" />
         </div>
       </div>
     </div>
   );
 }
-
-// ─── Stat Row ───────────────────────────────────────────────────────────────
 
 interface StatRowProps {
   label: string;
